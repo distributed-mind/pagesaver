@@ -78,6 +78,8 @@ var (
 		"https://permaweb.io/ipfs/",
 		"https://rx14.co.uk/ipfs/",
 		"https://siderus.io/ipfs/",
+		"http://gateway.bdaily.club",
+		"https://snap1.d.tube/ipfs/",
 	}
 )
 
