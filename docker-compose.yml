@@ -1,0 +1,14 @@
+version: '3'
+services:
+  pagesaver:
+    restart: always
+    build:
+      context: ./src
+      dockerfile: ../pagesaver.Dockerfile
+    ports:
+    - "127.0.0.1:8000:8000"
+    - "127.0.0.1:5001:5001"
+    - "127.0.0.1:8080:8080"
+    - "0.0.0.0:4001:4001"
+    - "0.0.0.0:8081:8081"
+  

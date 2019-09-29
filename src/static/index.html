@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang='en' class=''>
+<head>
+<title>The PageSaver</title>
+<link rel="shortcut icon" href="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCAxMDAwIDEwMDAiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgMCAwIDEwMDAgMTAwMCIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8Zz4NCjxwYXRoIGQ9Ik03NDUsMTBINjIyLjVIMjU1SDcxLjNDMzcuNCwxMCwxMCwzNy40LDEwLDcxLjN2ODU3LjVjMCwzMy44LDI3LjQsNjEuMyw2MS4zLDYxLjNoODU3LjVjMzMuOCwwLDYxLjMtMjcuNCw2MS4zLTYxLjN2LTczNUw4MDYuMywxMEg3NDV6IE03NDUsNzEuM3YyNDVINjIyLjV2LTI0NUg3NDV6IE01NjEuMyw3MS4zdjI0NUgyNTV2LTI0NUg1NjEuM3ogTTI1NSw5MjguOFY1NjEuM2g0OTB2MzY3LjVIMjU1eiBNOTI4LjgsOTI4LjhIODA2LjNWNTYxLjNjMC0zMy44LTI3LjQtNjEuMy02MS4zLTYxLjNIMjU1Yy0zMy44LDAtNjEuMywyNy40LTYxLjMsNjEuM3YzNjcuNUg3MS4zVjcxLjNoMTIyLjV2MjQ1YzAsMzMuOCwyNy40LDYxLjMsNjEuMyw2MS4zaDM2Ny41SDc0NWMzMy44LDAsNjEuMy0yNy40LDYxLjMtNjEuM1Y5Ni42bDEyMi41LDEyMi41VjkyOC44eiIvPg0KPC9nPg0KPC9zdmc+DQo=" />
+<style>
+
+label span,
+input::-webkit-input-placeholder {
+  font-family: Avant Garde, Avantgarde, Century Gothic, CenturyGothic, AppleGothic, sans-serif;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.126em;
+}
+
+label span,
+input:-ms-input-placeholder {
+  font-family: Avant Garde, Avantgarde, Century Gothic, CenturyGothic, AppleGothic, sans-serif;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.126em;
+}
+
+label span,
+input::-ms-input-placeholder {
+  font-family: Avant Garde, Avantgarde, Century Gothic, CenturyGothic, AppleGothic, sans-serif;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.126em;
+}
+
+label span, input::placeholder {
+  font-family: Avant Garde, Avantgarde, Century Gothic, CenturyGothic, AppleGothic, sans-serif;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.126em;
+}
+
+input {
+  font-family: Consolas, monaco, monospace;
+  color: blue;
+}
+
+.security-code {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6em;
+  background: white;
+  width: 600px;
+  border-radius: 1em;
+  box-shadow: 0 1em 1em -1em rgba(0, 0, 0, 0.3), 0 2em 2em -2em rgba(0, 0, 0, 0.3);
+}
+
+label {
+  position: relative;
+}
+
+label span {
+  text-align: center;
+  padding: 0 0 0.5em;
+  -webkit-transform: translateY(3px);
+  transform: translateY(3px);
+  transition: all .2s ease;
+  opacity: 0;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: 100%;
+  display: block;
+}
+
+label:focus-within span {
+  -webkit-transform: translateY(-50%);
+  transform: translateY(-50%);
+  opacity: 1;
+}
+
+input {
+  text-align: center;
+  padding: 1em 2em;
+  width: 300px;
+}
+
+input::-webkit-input-placeholder {
+  opacity: 1;
+  transition: opacity .25s ease;
+}
+
+input:-ms-input-placeholder {
+  opacity: 1;
+  transition: opacity .25s ease;
+}
+
+input::-ms-input-placeholder {
+  opacity: 1;
+  transition: opacity .25s ease;
+}
+
+input::placeholder {
+  opacity: 1;
+  transition: opacity .25s ease;
+}
+
+input:focus::-webkit-input-placeholder {
+  opacity: 0;
+}
+
+input:focus:-ms-input-placeholder {
+  opacity: 0;
+}
+
+input:focus::-ms-input-placeholder {
+  opacity: 0;
+}
+
+input:focus::placeholder {
+  opacity: 0;
+}
+
+.wrap {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.05);
+}
+.footer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  /* padding: 1rem; */
+  /* background-color: #efefef; */
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="security-code">
+<label>
+<span>Then Press Enter</span>
+<form action="/" method="post">
+<input type="text" name="targeturl" placeholder="Enter any URL" required>
+</form>
+</label>
+<p>
+{{$dag := .TargetDAG}}
+{{ if .HasFile }}
+{{$file := .Filename}}
+{{ range .Gateways }}
+<br /><a href="{{ . }}{{ $dag }}/{{ $file }}" target="_blank">{{ . }}{{ $dag }}/</a>
+{{ end }}
+{{ else }}
+{{ range .Gateways }}
+<br /><a href="{{ . }}{{ $dag }}/" target="_blank">{{ . }}{{ $dag }}/</a>
+{{ end }}
+{{ end }}
+</div>
+</div>
+<div class="footer">
+This is an open source project, see here: <a href="https://github.com/distributed-mind/pagesaver" target="_blank">https://github.com/distributed-mind/pagesaver</a>
+</div>
+</body>
+</html>
