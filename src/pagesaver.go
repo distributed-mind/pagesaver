@@ -22,21 +22,20 @@ import (
 	"os/exec"
 	"strings"
 	// "sync"
+	nurl "net/url"
 	"time"
-	"github.com/rylio/ytdl"
+	// "github.com/rylio/ytdl"
 
 	"eipfsd"
 )
 
 const (
-
 	checkDAG string = "QmbFMke1KXqnYyBBWxB74N4c5SBnJMVAiMNRcGu6x1AwQH"
-
 )
 
 var (
-	indexTemplate string
-	videoTemplate string
+	indexTemplate   string
+	videoTemplate   string
 	workingGateways []string
 	publicGateways  = []string{
 		// https://github.com/ipfs/public-gateway-checker/blob/master/gateways.json
@@ -54,7 +53,7 @@ var (
 		"https://hardbin.com/ipfs/",
 		"https://ipfs.busy.org/ipfs/",
 		"https://ipfs.doolta.com/ipfs/",
-		"https://ipfs.dweb.tools/ipfs/",
+		// "https://ipfs.dweb.tools/ipfs/",
 		"https://ipfs.eternum.io/ipfs/",
 		"https://ipfs.fooock.com/ipfs/",
 		"https://ipfs.globalupload.io/",
@@ -88,8 +87,13 @@ type IndexData struct {
 	Show      bool
 	TargetDAG string
 	Gateways  []string
-	HasFile bool
-	Filename string
+	HasFile   bool
+	Filename  string
+}
+
+// VideoTemplateData .
+type VideoTemplateData struct {
+	VideoFilename string
 }
 
 // main .
@@ -106,13 +110,14 @@ func main() {
 // pageSaver .
 func pageSaver() {
 
-	indexTemplate = stringFile("/usr/src/app/static/index.html")
-	videoTemplate = stringFile("/usr/src/app/static/video.html")
+	indexTemplate = stringFile("/app/static/index.html")
+	videoTemplate = stringFile("/app/static/video.html")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", serveIndex)
 
-    log.Println("Starting pagesaver...")
+	log.Println("Starting pagesaver...")
+	workingGateways = append(workingGateways, "https://ipfs.dweb.tools/ipfs/")
 
 	https := makeHTTPSServer(":8000", mux)
 	log.Fatal(https.ListenAndServeTLS("", ""))
@@ -126,144 +131,178 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 	t := template.Must(template.New("index").Parse(indexTemplate))
 
 	switch r.Method {
+
+	case "GET":
+
+		data := IndexData{
+			HasFile:  false,
+			Filename: "",
+			Show:     false,
+		}
+
+		file, exist := r.URL.Query()["file"]
+
+		if exist {
+			log.Printf("Seeing file: %s", file[0])
+			data.HasFile = true
+			data.Filename = file[0]
+		}
+
+		dag, exist := r.URL.Query()["dag"]
+		if exist {
+			data.Show = true
+			randomizedList := make([]string, len(workingGateways))
+			mrand.Seed(time.Now().UTC().UnixNano())
+			perm := mrand.Perm(len(workingGateways))
+			for i, v := range perm {
+				randomizedList[v] = workingGateways[i]
+			}
+			data.Gateways = randomizedList
+			data.TargetDAG = dag[0]
+		}
+
+		err := t.Execute(w, data)
+		check(err, "templating html")
+
+	case "POST":
+		r.ParseForm()
+
+		// targetURL := r.FormValue("targeturl")
+
+		url, urlType := parseURL(r.FormValue("targeturl"))
+
+		// url := fixURL(r.FormValue("targeturl"))
+
+		// log.Printf("Seeing url: %s", url)
+
+		// urlType := checkURLType(url)
+
+		switch urlType {
+
+		case "youtube":
+			log.Printf("Seeing Youtube URL: %s", url)
+
+			// filename := "video.mp4"
+			filename, _ := getVideoFilename(url)
+
+			dir, err := ioutil.TempDir(os.TempDir(), "ipfs")
+			check(err, "making temp dir: "+dir)
+			log.Printf("Created temp dir: %s", dir)
+			defer os.RemoveAll(dir)
+
+			ytdl, ext := getVideo(url, dir+"/"+filename)
+			log.Printf("Seeing video ext: %s", ext)
+			log.Printf("youtube-dl:\n%s", ytdl)
+
+			// vid, err := ytdl.GetVideoInfo(url)
+			// check(err,"ytdl getting video info: "+url)
+			// file, err := os.Create(dir + "/" + filename)
+			// defer file.Close()
+			// check(err, "creating file: "+dir+"/"+filename)
+			// err = vid.Download(vid.Formats[0], file)
+			// check(err,"ytdl download video file: "+url)
+			// t := template.Must(template.New("index").Parse(videoTemplate))
+
+			// files, err := ioutil.ReadDir(dir+"/")
+			// check(err, "reading tmp dir: "+dir)
+
+			// for _, f := range files {
+			// 	log.Printf("Seeing video artifact: %s", dir + "/"+f.Name())
+
+			// 		// fmt.Println(f.Name())
+			// }
+			filewithext := filename+"."+ext
+			log.Printf("templating video page with filename: %s", filewithext)
+
+			data := VideoTemplateData{VideoFilename: filewithext}
+			// err = t.Execute(file, data)
+
 			
-		case "GET":
-
-			data := IndexData{
-				HasFile: false,
-				Filename: "",
-				Show: false,
-			}
-
-			file, exist := r.URL.Query()["file"]
-
-			if exist {
-				log.Printf("Seeing file: %s", file[0])
-				data.HasFile = true
-				data.Filename = file[0]
-			}
-
-			dag, exist := r.URL.Query()["dag"]
-			if exist {
-				data.Show = true
-				randomizedList := make([]string, len(workingGateways))
-				mrand.Seed(time.Now().UTC().UnixNano())
-				perm := mrand.Perm(len(workingGateways))
-				for i, v := range perm {
-					randomizedList[v] = workingGateways[i]
-				}
-				data.Gateways = randomizedList
-				data.TargetDAG = dag[0]
-			}
-		
-			err := t.Execute(w, data)
+			file, err := os.Create(dir + "/"+filename+".html")
+			defer file.Close()
+			check(err, "creating file: "+dir + "/"+filename+".html")
+			t := template.Must(template.New("index").Parse(videoTemplate))
+			err = t.Execute(file, data)
 			check(err, "templating html")
-			
-		case "POST":
-			r.ParseForm()
-			url := fixURL(r.FormValue("targeturl"))
 
-			log.Printf("Seeing url: %s", url)
+			// err = ioutil.WriteFile(dir + "/"+filename+"."+ext+".html", []byte(videoTemplate), 0666)
+			// check(err, "Writing file: "+dir + "/"+filename+"."+ext+".html")
 
-			urlType := checkURLType(url)
-
-			switch urlType {
-					
-				case "video":
-					log.Printf("Video URL: %s", url)
-
-					filename := "video.mp4"
-
-					dir, err := ioutil.TempDir(os.TempDir(), "ipfs")
-					check(err,"making temp dir: "+dir)
-					defer os.RemoveAll(dir)
-
-					vid, err := ytdl.GetVideoInfo(url)
-					check(err,"ytdl getting video info: "+url)
-					file, _ := os.Create(dir +"/" + filename)
-					defer file.Close()
-					err = vid.Download(vid.Formats[0], file)
-					check(err,"ytdl download video file: "+url)
-
-					err = ioutil.WriteFile(dir + "/video.html", []byte(videoTemplate), 0666)
-					check(err, "Writing file: " + dir + "/video.html")
-
-					dag := addDir(dir)
-					log.Printf("Pagesaver: %s : %s", url, dag)
-					mrand.Seed(time.Now().UnixNano())
-					for _, server := range workingGateways {
-						i := mrand.Intn(3 - 1) + 1
-						if i == 2 {
-							go WarmURL(server + dag + "/" + filename)
-						}
-					}
-
-					http.Redirect(w, r, r.URL.Hostname()+"/?dag="+dag+"&file=video.html", http.StatusSeeOther)
-
-
-				case "nojavascript":
-					log.Printf("no javascript URL: %s", url)
-
-					html := monolith(url) // TODO: use --nojs argument to fix lazyloading
-					filename, err := getTitle(html)
-					if err == nil && filename != "" {
-						log.Printf("Finding title: %s", filename)
-					} else {
-						filename = "index"
-					}
-
-					dir, err := ioutil.TempDir(os.TempDir(), "ipfs")
-					check(err,"making temp dir: "+dir)
-					defer os.RemoveAll(dir)
-
-					err = ioutil.WriteFile(dir + "/" + filename + ".html", []byte(html), 0666)
-					check(err, "Writing file: " + dir + "/" + filename + ".html")
-
-					dag := addDir(dir)
-					log.Printf("Pagesaver: %s : %s", url, dag)
-					mrand.Seed(time.Now().UnixNano())
-					for _, server := range workingGateways {
-						i := mrand.Intn(3 - 1) + 1
-						if i == 2 {
-							go WarmURL(server + dag + "/" + filename + ".html")
-						}
-					}
-
-					http.Redirect(w, r, r.URL.Hostname()+"/?dag="+dag+"&file="+filename+".html", http.StatusSeeOther)
-
-				default:
-					html := monolith(url)
-					filename, err := getTitle(html)
-					if err == nil && filename != "" {
-						log.Printf("Finding title: %s", filename)
-					} else {
-						filename = "index"
-					}
-
-					dir, err := ioutil.TempDir(os.TempDir(), "ipfs")
-					check(err,"making temp dir: "+dir)
-					defer os.RemoveAll(dir)
-
-					err = ioutil.WriteFile(dir + "/" + filename + ".html", []byte(html), 0666)
-					check(err, "Writing file: " + dir + "/" + filename + ".html")
-
-					dag := addDir(dir)
-					log.Printf("Pagesaver: %s : %s", url, dag)
-					mrand.Seed(time.Now().UnixNano())
-					for _, server := range workingGateways {
-						i := mrand.Intn(3 - 1) + 1
-						if i == 2 {
-							go WarmURL(server + dag + "/" + filename + ".html")
-						}
-					}
-
-					http.Redirect(w, r, r.URL.Hostname()+"/?dag="+dag+"&file="+filename+".html", http.StatusSeeOther)
+			dag := addDir(dir)
+			log.Printf("Pagesaver: %s : %s", url, dag)
+			mrand.Seed(time.Now().UnixNano())
+			for _, server := range workingGateways {
+				i := mrand.Intn(3-1) + 1
+				if i == 2 {
+					go WarmURL(server + dag + "/" + filewithext)
+				}
 			}
+
+			http.Redirect(w, r, r.URL.Hostname()+"/?dag="+dag+"&file="+filename+".html", http.StatusSeeOther)
+
+		case "nojavascript":
+			log.Printf("no javascript URL: %s", url)
+
+			html := monolith(url) // TODO: use --nojs argument to fix lazyloading
+			filename, err := getTitle(html)
+			if err == nil && filename != "" {
+				log.Printf("Finding title: %s", filename)
+			} else {
+				filename = "index"
+			}
+
+			dir, err := ioutil.TempDir(os.TempDir(), "ipfs")
+			check(err, "making temp dir: "+dir)
+			defer os.RemoveAll(dir)
+
+			err = ioutil.WriteFile(dir+"/"+filename+".html", []byte(html), 0666)
+			check(err, "Writing file: "+dir+"/"+filename+".html")
+
+			dag := addDir(dir)
+			log.Printf("Pagesaver: %s : %s", url, dag)
+			mrand.Seed(time.Now().UnixNano())
+			for _, server := range workingGateways {
+				i := mrand.Intn(3-1) + 1
+				if i == 2 {
+					go WarmURL(server + dag + "/" + filename + ".html")
+				}
+			}
+
+			http.Redirect(w, r, r.URL.Hostname()+"/?dag="+dag+"&file="+filename+".html", http.StatusSeeOther)
 
 		default:
-			w.WriteHeader(http.StatusNotImplemented)
-			w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
-    }
+			html := monolith(url)
+			filename, err := getTitle(html)
+			if err == nil && filename != "" {
+				log.Printf("Finding title: %s", filename)
+			} else {
+				filename = "index"
+			}
+
+			dir, err := ioutil.TempDir(os.TempDir(), "ipfs")
+			check(err, "making temp dir: "+dir)
+			defer os.RemoveAll(dir)
+
+			err = ioutil.WriteFile(dir+"/"+filename+".html", []byte(html), 0666)
+			check(err, "Writing file: "+dir+"/"+filename+".html")
+
+			dag := addDir(dir)
+			log.Printf("Pagesaver: %s : %s", url, dag)
+			mrand.Seed(time.Now().UnixNano())
+			for _, server := range workingGateways {
+				i := mrand.Intn(3-1) + 1
+				if i == 2 {
+					go WarmURL(server + dag + "/" + filename + ".html")
+				}
+			}
+
+			http.Redirect(w, r, r.URL.Hostname()+"/?dag="+dag+"&file="+filename+".html", http.StatusSeeOther)
+		}
+
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
+	}
 
 	return
 
@@ -271,7 +310,7 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 
 func doIPFS() {
 	log.Println("Instanciating ipfs daemon...")
-	d := eipfsd.NewDaemon("/usr/src/app/data/ipfs/")
+	d := eipfsd.NewDaemon("/app/data/ipfs/")
 
 	log.Println("Initializing ipfs daemon...")
 	d.Initialize()
@@ -280,18 +319,112 @@ func doIPFS() {
 	go d.Run()
 }
 
-// func getVideo(url) {
+func getVideo(url, filepath string) (string, string) {
+	var stdout bytes.Buffer
+	// %(title)s-%(id)s.%(ext)s
+	log.Printf("Running youtube-dl to get video file: %s", url)
+	cmd := exec.Command(
+		"youtube-dl",
+		"--restrict-filenames",
+		"-k",
+		"-o", filepath,
+		url,
+	)
+	cmd.Stdout = &stdout
+	err := cmd.Run()
+	check(err, "running youtube-dl on url: "+url)
+    scanner := bufio.NewScanner(strings.NewReader(string(stdout.Bytes())))
+	scanner.Split(bufio.ScanLines)
+	var ext string
+    for scanner.Scan() {
+		// log.Printf("Seeing video file: %s", dir + "/"+f.Name())
+		// fmt.Println(scanner.Text())
+		if strings.Contains(scanner.Text(), "Merging formats") {
+			log.Printf("DEBUG LINE: %s", scanner.Text())
 
-// }
+			ext = strings.Split(scanner.Text(), ".")[1]
+			log.Printf("DEBUG EXT1: %s", ext)
+
+			ext = strings.TrimSuffix(ext, `"`)
+			log.Printf("DEBUG EXT2: %s", ext)
+
+		}
+    }
+	return string(stdout.Bytes()), ext
+
+}
+
+func getVideoFilename(url string) (filename, ext string) {
+	var ystdout bytes.Buffer
+	// %(title)s-%(id)s.%(ext)s
+	log.Printf("Running youtube-dl to get filename: %s", url)
+	ycmd := exec.Command(
+		"youtube-dl",
+		"--get-filename",
+		"--restrict-filenames",
+		"-o", "%(title)s-%(id)s.%(ext)s",
+		url,
+	)
+	ycmd.Stdout = &ystdout
+	err := ycmd.Run()
+	check(err, "running youtube-dl get filename on url: "+url)
+	// var tstdout bytes.Buffer
+	// // %(title)s-%(id)s.%(ext)s
+	// tcmd := exec.Command(
+	// 	"tree",
+	// 	"/tmp/",
+	// )
+	// tcmd.Stdout = &tstdout
+	// err = tcmd.Run()
+	// check(err, "debug")
+	splitName := strings.Split(string(ystdout.Bytes()), ".")
+	return splitName[0], splitName[1]
+}
+
+func parseURL(url string) (curl string, urlType string) {
+	if !(strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")) {
+		url = "http://" + url
+	}
+	purl, err := nurl.Parse(url)
+	check(err, "error parsing URL: "+url)
+	curl = purl.String()
+
+	switch purl.Hostname() {
+	case "www.youtube.com":
+		{
+			return curl, "youtube"
+		}
+	case "youtube.com":
+		{
+			return curl, "youtube"
+		}
+	case "youtu.be":
+		{
+			return curl, "youtube"
+		}
+	case "www.reddit.com":
+		{
+			return curl, "nojavascript"
+
+		}
+	case "medium.com":
+		{
+			return curl, "nojavascript"
+		}
+	default:
+		{
+			return curl, "monolith"
+		}
+	}
+}
 
 func checkPublicGateways() {
 	log.Printf("Checking gateway list...")
 	for _, gateway := range publicGateways {
 		go testGateway(gateway)
-		
+
 	}
 }
-
 
 func testGateway(gateway string) {
 	client := &http.Client{
@@ -327,23 +460,23 @@ func WarmURL(url string) {
 	// io.Copy(ioutil.Discard, resp.Body)
 	split := strings.Split(url, "/")
 	gateway := split[0] + "//" + split[1] + split[2] + "/"
-	log.Printf("SUCCESS! warming cache: %s", gateway )
+	log.Printf("SUCCESS! warming cache: %s", gateway)
 	return
 }
 
 // fixURL .
-func fixURL(url string) string {
-	if strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://") {
-		return url
-	}
-	return "http://" + url
-}
+// func fixURL(url string) string {
+// 	if strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://") {
+// 		return url
+// 	}
+// 	return "http://" + url
+// }
 
 // monolith .
 func monolith(url string) (html string) {
 
 	dir, err := ioutil.TempDir(os.TempDir(), "monolith")
-	check(err,"making temp dir: "+dir)
+	check(err, "making temp dir: "+dir)
 	defer os.RemoveAll(dir)
 
 	var stdout bytes.Buffer
@@ -356,29 +489,29 @@ func monolith(url string) (html string) {
 	return html
 }
 
-func checkURLType(url string) (urlType string) {
+// func checkURLType(url string) (urlType string) {
 
-	if strings.HasPrefix(url, "https://www.youtube.com") ||
-	strings.HasPrefix(url, "https://youtu.be") {
-		urlType = "video"
-	} else if strings.HasPrefix(url, "https://www.reddit.com") ||
-	strings.HasPrefix(url, "https://medium.com") {
-		urlType = "nojavascript"
-	} else {
-		urlType = ""
-	}
+// 	if strings.HasPrefix(url, "https://www.youtube.com") ||
+// 	strings.HasPrefix(url, "https://youtu.be") {
+// 		urlType = "video"
+// 	} else if strings.HasPrefix(url, "https://www.reddit.com") ||
+// 	strings.HasPrefix(url, "https://medium.com") {
+// 		urlType = "nojavascript"
+// 	} else {
+// 		urlType = ""
+// 	}
 
-	return urlType
-}
+// 	return urlType
+// }
 
 func addDir(dir string) (dag string) {
 
-	os.Setenv("IPFS_PATH", "/usr/src/app/data/ipfs")
+	os.Setenv("IPFS_PATH", "/app/data/ipfs")
 
 	cmd := exec.Command("ipfs", "add", "-qr", dir) // TODO: find a better way
 	out, err := cmd.CombinedOutput()
+	log.Printf("IPFS add: %s", out)
 	check(err, "Adding to ipfs: "+dir)
-	
 
 	// get last line of output, which is root dag
 	scanner := bufio.NewScanner(strings.NewReader(string(out)))
@@ -397,20 +530,31 @@ func addDir(dir string) (dag string) {
 
 func getTitle(html string) (string, error) {
 	titleStartIndex := strings.Index(html, "<title>")
-    if titleStartIndex == -1 {
-        return "", errors.New("Cant find open title")
-    }
-    titleStartIndex += 7
-    titleEndIndex := strings.Index(html, "</title>")
-    if titleEndIndex == -1 {
-        return "", errors.New("Cant find close title")
+	if titleStartIndex == -1 {
+		return "", errors.New("Cant find open title")
 	}
-	r := strings.NewReplacer(" ", "_", "/", "_", ":", "-", "(", "", ")", "", ".", "-", `"`, "", "'", "", ",", "")
+	titleStartIndex += 7
+	titleEndIndex := strings.Index(html, "</title>")
+	if titleEndIndex == -1 {
+		return "", errors.New("Cant find close title")
+	}
+	r := strings.NewReplacer(
+		" ", "_",
+		"/", "_",
+		":", "-",
+		".", "-",
+		"(", "",
+		")", "",
+		`"`, "",
+		"'", "",
+		",", "",
+		"?", "",
+	)
 	title := r.Replace(strings.TrimSpace(html[titleStartIndex:titleEndIndex]))
 	if len(title) > 80 {
 		return title[0:80], nil
 	}
-    return title, nil
+	return title, nil
 }
 
 func makeHTTPSServer(port string, mux *http.ServeMux) *http.Server {
@@ -435,7 +579,7 @@ func makeHTTPSServer(port string, mux *http.ServeMux) *http.Server {
 		TLSConfig:    cfg,
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 	}
-	return httpsServer	
+	return httpsServer
 }
 
 func makeSSLCert() tls.Certificate {
@@ -488,10 +632,11 @@ func stringFile(path string) string {
 
 // logger .
 func logger(handler http.Handler) http.Handler {
-	logHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	log := func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s %s %s", r.RemoteAddr, r.Method, r.Host, r.URL)
 		handler.ServeHTTP(w, r)
-	})
+	}
+	logHandler := http.HandlerFunc(log)
 	return logHandler
 }
 

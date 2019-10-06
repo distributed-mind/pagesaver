@@ -1,8 +1,8 @@
 # monolith
 FROM ubuntu:18.04 as monolith
 
-RUN apt update &&\
-apt install -y rustc cargo libssl-dev pkg-config &&\
+RUN apt update && \
+apt install -y rustc cargo libssl-dev pkg-config && \
 cargo install --git https://github.com/Y2Z/monolith
 
 # golang
@@ -17,25 +17,41 @@ FROM ipfs/go-ipfs:latest as ipfs
 
 # pagesaver
 FROM ubuntu:18.04
-WORKDIR /usr/src/app/
 
 RUN apt-get update && \
 apt-get dist-upgrade -y && \
 apt-get install -y \
+    --no-install-recommends \
     bash \
     tree \
     curl \
     libssl-dev \
+    python3-minimal \
+    python3-pip \
+    ffmpeg \
     && \
-rm -rf /var/lib/apt/lists/*
+rm -rf /var/lib/apt/lists/* && \
+pip3 install -U pip && \
+pip install -U youtube-dl
 
-RUN mkdir -p /usr/src/app/data/ipfs &&\
-mkdir -p /usr/src/app/data/monolith
+RUN adduser \
+    --system \
+    --disabled-password \
+    --group \
+    --gecos "" \
+    --home /app \
+    app \
+    && \
+mkdir -p /app/data/ipfs && \
+chown -R app:app /app
 
-COPY --from=golang /build/pagesaver  /usr/local/bin
 COPY --from=ipfs /usr/local/bin/ipfs /usr/local/bin
 COPY --from=monolith /root/.cargo/bin/monolith  /usr/local/bin
-COPY    static/  /usr/src/app/static
+COPY --from=golang /build/pagesaver  /usr/local/bin
+COPY    static/  /app/static
+
+USER app
+WORKDIR /app
 
 # run pagesaver
 EXPOSE 8000

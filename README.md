@@ -12,9 +12,10 @@ NOTES:
 
 ###
 TODO:
-- (monoltih) disable javascript for certain sites, (medium.com, reddit,) 
+- (monoltih) disable javascript for certain sites, (medium.com, reddit, wsj,) 
 - cleanup youtube support
 - add bandcamp support
 - clean up embedded ipfs, make better
 - fix html pages, perhaps ask someone in community
+- use `"net/url"` `url.ParseRequestURI(url)` for parsing urls
 
