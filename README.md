@@ -5,6 +5,11 @@ a demo can be seen here: https://pagesaver.dweb.tools
 Enter a URL and press enter. The resulting links are copies of the page, except that they are hosted on IPFS.
 You can also enter youtube URLs.
 
+###
+This project builds on top of these other projects:
+- Monolith: https://github.com/Y2Z/monolith
+- youtube-dl: https://github.com/ytdl-org/youtube-dl
+- IPFS: https://github.com/ipfs/go-ipfs
 
 ###
 NOTES:
@@ -17,5 +22,4 @@ TODO:
 - add bandcamp support
 - clean up embedded ipfs, make better
 - fix html pages, perhaps ask someone in community
-- use `"net/url"` `url.ParseRequestURI(url)` for parsing urls
 
