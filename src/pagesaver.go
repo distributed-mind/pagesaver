@@ -551,8 +551,10 @@ func getTitle(html string) (string, error) {
 		"?", "",
 		"|", "",
 		"__", "_",
+		"_.", ".",
 	)
 	title := r.Replace(strings.TrimSpace(html[titleStartIndex:titleEndIndex]))
+	title = r.Replace(title) // again for dual char replace
 	if len(title) > 80 {
 		return title[0:80], nil
 	}
