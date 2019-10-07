@@ -549,6 +549,8 @@ func getTitle(html string) (string, error) {
 		"'", "",
 		",", "",
 		"?", "",
+		"|", "",
+		"__", "_",
 	)
 	title := r.Replace(strings.TrimSpace(html[titleStartIndex:titleEndIndex]))
 	if len(title) > 80 {
