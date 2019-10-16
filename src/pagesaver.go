@@ -11,7 +11,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"html/template"
-	// "io"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -21,10 +21,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	// "sync"
+	"encoding/json"
 	nurl "net/url"
 	"time"
-	// "github.com/rylio/ytdl"
 
 	"eipfsd"
 )
@@ -81,6 +80,24 @@ var (
 		"https://snap1.d.tube/ipfs/",
 	}
 )
+
+// ImgurJSON comes from the html
+type ImgurJSON struct {
+	Title       string `json:"title"`
+	AlbumImages struct {
+		Images []struct {
+			Hash        string      `json:"hash"`
+			Ext         string      `json:"ext"`
+		} `json:"images"`
+	} `json:"album_images"`
+}
+
+// ImgurAlbum .
+type ImgurAlbum struct {
+	Title string
+	Images []string
+
+}
 
 // IndexData .
 type IndexData struct {
@@ -167,22 +184,13 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		r.ParseForm()
 
-		// targetURL := r.FormValue("targeturl")
-
 		url, urlType := parseURL(r.FormValue("targeturl"))
-
-		// url := fixURL(r.FormValue("targeturl"))
-
-		// log.Printf("Seeing url: %s", url)
-
-		// urlType := checkURLType(url)
 
 		switch urlType {
 
 		case "youtube":
 			log.Printf("Seeing Youtube URL: %s", url)
 
-			// filename := "video.mp4"
 			filename, _ := getVideoFilename(url)
 
 			dir, err := ioutil.TempDir(os.TempDir(), "ipfs")
@@ -194,29 +202,10 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Seeing video ext: %s", ext)
 			log.Printf("youtube-dl:\n%s", ytdl)
 
-			// vid, err := ytdl.GetVideoInfo(url)
-			// check(err,"ytdl getting video info: "+url)
-			// file, err := os.Create(dir + "/" + filename)
-			// defer file.Close()
-			// check(err, "creating file: "+dir+"/"+filename)
-			// err = vid.Download(vid.Formats[0], file)
-			// check(err,"ytdl download video file: "+url)
-			// t := template.Must(template.New("index").Parse(videoTemplate))
-
-			// files, err := ioutil.ReadDir(dir+"/")
-			// check(err, "reading tmp dir: "+dir)
-
-			// for _, f := range files {
-			// 	log.Printf("Seeing video artifact: %s", dir + "/"+f.Name())
-
-			// 		// fmt.Println(f.Name())
-			// }
 			filewithext := filename+"."+ext
 			log.Printf("templating video page with filename: %s", filewithext)
 
 			data := VideoTemplateData{VideoFilename: filewithext}
-			// err = t.Execute(file, data)
-
 			
 			file, err := os.Create(dir + "/"+filename+".html")
 			defer file.Close()
@@ -224,9 +213,6 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 			t := template.Must(template.New("index").Parse(videoTemplate))
 			err = t.Execute(file, data)
 			check(err, "templating html")
-
-			// err = ioutil.WriteFile(dir + "/"+filename+"."+ext+".html", []byte(videoTemplate), 0666)
-			// check(err, "Writing file: "+dir + "/"+filename+"."+ext+".html")
 
 			dag := addDir(dir)
 			log.Printf("Pagesaver: %s : %s", url, dag)
@@ -239,6 +225,13 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 			}
 
 			http.Redirect(w, r, r.URL.Hostname()+"/?dag="+dag+"&file="+filename+".html", http.StatusSeeOther)
+
+		case "imgur":
+			log.Printf("Seeing imgur URL: %s", url)
+
+			dag, _ := doImgur(url)
+
+			http.Redirect(w, r, r.URL.Hostname()+"/?dag="+dag, http.StatusSeeOther)
 
 		case "nojavascript":
 			log.Printf("no javascript URL: %s", url)
@@ -319,6 +312,102 @@ func doIPFS() {
 	go d.Run()
 }
 
+func doImgur(url string) (dag, title string) {
+
+	i, err := getImageFilenames(url)
+	check(err, "grabbing imgur html: "+url)
+	dir, err := ioutil.TempDir(os.TempDir(), "ipfs")
+	check(err, "making temp dir: "+dir)
+	log.Printf("Created temp dir: %s", dir)
+	defer os.RemoveAll(dir)
+
+	downloadImages(i, dir)
+
+	dag = addDir(dir)
+	mrand.Seed(time.Now().UnixNano())
+	
+
+	for _, server := range workingGateways {
+		b := mrand.Intn(3-1) + 1
+		if b == 2 {
+			for _, img := range i.Images {
+				a := mrand.Intn(3-1) + 1
+				if a == 2 {
+					go WarmURL(server + dag + "/" + strings.Split(img, "/")[3])
+				} 
+			}
+		}
+	}
+
+	return dag, i.Title
+
+}
+
+func downloadImages(i ImgurAlbum, dir string) {
+	for _, url := range i.Images {
+		res, err := http.Get(url)
+		check(err, "Getting image: "+url)
+		path := dir +"/"+ strings.Split(url, "/")[3]
+		file, err := os.Create(path)
+		check(err, "Creating file image: "+path)
+		_, err = io.Copy(file, res.Body)
+		check(err, "Copying image data: "+path)
+		res.Body.Close()
+		file.Close()
+	}
+}
+
+func getImageFilenames(url string) (ImgurAlbum, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	htmlbytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+	html := string(htmlbytes)
+	start := strings.Index(html, "image               : ")
+	if start == -1 {
+		return ImgurAlbum{}, errors.New("parsing html, start")
+	}
+	start += 22
+	end := strings.Index(html, "group               : null,")
+	if end == -1 {
+		return ImgurAlbum{}, errors.New("parsing html, end")
+	}
+	end -= 5
+	cjson := strings.TrimSuffix(strings.TrimSpace(html[start:end]), ",")
+	nj := &ImgurJSON{}
+	if err := json.Unmarshal([]byte(cjson), nj); err != nil {
+        panic(err)
+	}
+	r := strings.NewReplacer(
+		" ", "_",
+		"/", "_",
+		":", "-",
+		".", "-",
+		"(", "",
+		")", "",
+		`"`, "",
+		"'", "",
+		",", "",
+		"?", "",
+		"|", "",
+		"&", "and",
+		"__", "_",
+		"_.", "-",
+	)
+	ng := ImgurAlbum{}
+	ng.Title = strings.TrimSuffix(r.Replace(r.Replace(strings.TrimSpace(nj.Title))), "-")
+	for _, i := range nj.AlbumImages.Images {
+		ng.Images = append(ng.Images, "https://i.imgur.com/" + i.Hash + i.Ext)
+	}
+	
+	return ng, nil
+}
+
 func getVideo(url, filepath string) (string, string) {
 	var stdout bytes.Buffer
 	// %(title)s-%(id)s.%(ext)s
@@ -368,20 +457,12 @@ func getVideoFilename(url string) (filename, ext string) {
 	ycmd.Stdout = &ystdout
 	err := ycmd.Run()
 	check(err, "running youtube-dl get filename on url: "+url)
-	// var tstdout bytes.Buffer
-	// // %(title)s-%(id)s.%(ext)s
-	// tcmd := exec.Command(
-	// 	"tree",
-	// 	"/tmp/",
-	// )
-	// tcmd.Stdout = &tstdout
-	// err = tcmd.Run()
-	// check(err, "debug")
 	splitName := strings.Split(string(ystdout.Bytes()), ".")
 	return splitName[0], splitName[1]
 }
 
 func parseURL(url string) (curl string, urlType string) {
+	url = strings.TrimSpace(url)
 	if !(strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")) {
 		url = "http://" + url
 	}
@@ -410,6 +491,10 @@ func parseURL(url string) (curl string, urlType string) {
 	case "medium.com":
 		{
 			return curl, "nojavascript"
+		}
+	case "imgur.com":
+		{
+			return curl, "imgur"
 		}
 	default:
 		{
@@ -488,21 +573,6 @@ func monolith(url string) (html string) {
 	html = string(stdout.Bytes())
 	return html
 }
-
-// func checkURLType(url string) (urlType string) {
-
-// 	if strings.HasPrefix(url, "https://www.youtube.com") ||
-// 	strings.HasPrefix(url, "https://youtu.be") {
-// 		urlType = "video"
-// 	} else if strings.HasPrefix(url, "https://www.reddit.com") ||
-// 	strings.HasPrefix(url, "https://medium.com") {
-// 		urlType = "nojavascript"
-// 	} else {
-// 		urlType = ""
-// 	}
-
-// 	return urlType
-// }
 
 func addDir(dir string) (dag string) {
 
