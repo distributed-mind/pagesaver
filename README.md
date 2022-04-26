@@ -25,7 +25,7 @@ DEMO:
 
 ###
 TODO:
-- (monoltih) disable javascript for certain sites, (medium.com, reddit, wsj,) 
+- (monolith) disable javascript for certain sites, (medium.com, reddit, wsj,) 
 - cleanup youtube support
 - add album viewer html
 - rewrite everything
